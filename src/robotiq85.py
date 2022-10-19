@@ -83,6 +83,10 @@ def test_robotiq(serviceName):
 
     rospy.init_node(serviceName)
 
+    stop_srv  = rospy.ServiceProxy('/ur10e_hw/dashboard/stop', std_srvs.srv.Trigger)
+    play_srv  = rospy.ServiceProxy('/ur10e_hw/dashboard/play', std_srvs.srv.Trigger)
+    state_srv = rospy.ServiceProxy('/ur10e_hw/dashboard/program_state', ur_dashboard_msgs.srv.GetProgramState)
+
     pub = rospy.Publisher('/ur10e_hw/script_command', std_msgs.msg.String, queue_size=10)
     s = rospy.Service(serviceName, manipulation_msgs.srv.JobExecution, job_exec_srv)
     r = rospy.Rate(10) # 10hz
@@ -94,6 +98,8 @@ def test_robotiq(serviceName):
     while cont:
         if (new_command):
 
+            stop_srv()
+            rospy.sleep(0.5)
             command=template
             target_position =  int(255 -  target_position_mm/85.0 * (255.0))
             force_setpoint=int(force_percentage/100.0*255.0)
@@ -103,6 +109,12 @@ def test_robotiq(serviceName):
             command=command.replace("FORCE_BYTE",str(velocity_setpoint))
             pub.publish(command)
 
+            rospy.sleep(0.5)
+            while True:
+                lg_state=state_srv();
+                if lg_state.state.state=="STOPPED":
+                    break
+                play_srv()
             new_command = False
         r.sleep()
 
