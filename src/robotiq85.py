@@ -114,7 +114,7 @@ def test_robotiq(serviceName):
                 lg_state=state_srv();
                 if lg_state.state.state=="STOPPED":
                     break
-                play_srv()
+            play_srv()
             new_command = False
         r.sleep()
 
