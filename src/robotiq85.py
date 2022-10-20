@@ -13,6 +13,8 @@ import manipulation_msgs.srv
 
 from pathlib import Path
 
+import rospkg
+
 cont = True
 target_position = 255
 target_position_mm = 255
@@ -91,7 +93,12 @@ def test_robotiq(serviceName):
     s = rospy.Service(serviceName, manipulation_msgs.srv.JobExecution, job_exec_srv)
     r = rospy.Rate(10) # 10hz
 
-    template = Path('template.script').read_text()
+
+    rospack = rospkg.RosPack()
+    path_ros=rospack.get_path('robotiq85_e_series')
+    #print(path_ros+"/src/template.script")
+
+    template = Path(path_ros+"/src/template.script").read_text()
 
 
 
@@ -99,7 +106,15 @@ def test_robotiq(serviceName):
         if (new_command):
 
             stop_srv()
-            rospy.sleep(0.5)
+            print("waiting for stop")
+            while True:
+                lg_state=state_srv();
+                print(lg_state)
+                if lg_state.state.state=="STOPPED":
+                    break
+                rospy.sleep(0.01)
+            #rospy.sleep(0.5)
+            print("send script")
             command=template
             target_position =  int(255 -  target_position_mm/85.0 * (255.0))
             force_setpoint=int(force_percentage/100.0*255.0)
@@ -109,18 +124,35 @@ def test_robotiq(serviceName):
             command=command.replace("FORCE_BYTE",str(velocity_setpoint))
             pub.publish(command)
 
-            rospy.sleep(0.5)
+            print("waiting script execution")
+            for idx in range(0,50):
+                lg_state=state_srv();
+                if lg_state.state.state=="PLAYING":
+                    break
+                rospy.sleep(0.01)
+
+            print("waiting script end")
             while True:
                 lg_state=state_srv();
                 if lg_state.state.state=="STOPPED":
                     break
+                rospy.sleep(0.01)
+
+            # restart
+            print("restart script")
             play_srv()
+            print("waiting for program restart")
+            while True:
+                lg_state=state_srv();
+                if lg_state.state.state=="PLAYING":
+                    break
+                rospy.sleep(0.01)
+                play_srv()
+            print("fine")
             new_command = False
         r.sleep()
 
     new_command=False
-    if (not debug_flag):
-        hand.disconnect()
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, handler)
